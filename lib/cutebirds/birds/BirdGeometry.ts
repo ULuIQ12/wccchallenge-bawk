@@ -5,17 +5,18 @@ import { BirdParams } from "./Bird";
 export class BirdGeoms
 {
     head:BufferGeometry|undefined;
-    eye:BufferGeometry|undefined;;
-    pupil:BufferGeometry|undefined;;
-    beakTop:BufferGeometry|undefined;;
-    beakBottom:BufferGeometry|undefined;;
-    neck:BufferGeometry|undefined;;
-    body:BufferGeometry|undefined;;
-    leftWing:BufferGeometry|undefined;;
-    rightWing:BufferGeometry|undefined;;
-    upLeg:BufferGeometry|undefined;;
-    lowLeg:BufferGeometry|undefined;;
-    foot:BufferGeometry|undefined;;
+    eye:BufferGeometry|undefined;
+    pupil:BufferGeometry|undefined;
+    beakTop:BufferGeometry|undefined;
+    beakBottom:BufferGeometry|undefined;
+    neck:BufferGeometry|undefined;
+    body:BufferGeometry|undefined;
+    leftWing:BufferGeometry|undefined;
+    rightWing:BufferGeometry|undefined;
+    upLeg:BufferGeometry|undefined;
+    lowLeg:BufferGeometry|undefined;
+    foot:BufferGeometry|undefined;
+    tail:BufferGeometry|undefined;
 }
 
 export class BirdGeometry 
@@ -35,7 +36,8 @@ export class BirdGeometry
         geoms.rightWing = BirdGeometry.createRightWing(params);
         geoms.upLeg = BirdGeometry.createUpLeg(params);
         geoms.lowLeg = BirdGeometry.createLowLeg(params);
-        geoms.foot = BirdGeometry.createFoot(params);
+        geoms.foot = BirdGeometry.createFoot2(params);
+        geoms.tail = BirdGeometry.createTail(params);
         return geoms;
     }
 
@@ -72,10 +74,14 @@ export class BirdGeometry
     {
         const p:BirdParams = params;
         const shape:Shape = new Shape();
+        const bottomStr:number = Math.min( p.bodyBottomRadius, p.bodyLength * .5);
+        const topStr:number = Math.min( p.bodyTopRadius, p.bodyLength * .5);
         shape.absarc(0, p.bodyLength, p.bodyTopRadius, 0, Math.PI, false);
-        shape.bezierCurveTo(-p.bodyTopRadius, p.bodyLength -p.bodyLength * .25, -p.bodyBottomRadius, p.bodyLength * .25, -p.bodyBottomRadius, 0);
+        //shape.bezierCurveTo(-p.bodyTopRadius, p.bodyLength -p.bodyLength * .25, -p.bodyBottomRadius, p.bodyLength * .25, -p.bodyBottomRadius, 0);
+        shape.bezierCurveTo(-p.bodyTopRadius, p.bodyLength -topStr, -p.bodyBottomRadius, bottomStr, -p.bodyBottomRadius, 0);
         shape.absarc(0, 0, p.bodyBottomRadius, Math.PI, 0, false);
-        shape.bezierCurveTo(p.bodyBottomRadius, p.bodyLength * .25, p.bodyTopRadius, p.bodyLength - p.bodyLength * .25, p.bodyTopRadius, p.bodyLength);
+        //shape.bezierCurveTo(p.bodyBottomRadius, p.bodyLength * .25, p.bodyTopRadius, p.bodyLength - p.bodyLength * .25, p.bodyTopRadius, p.bodyLength);
+        shape.bezierCurveTo(p.bodyBottomRadius, bottomStr, p.bodyTopRadius, p.bodyLength - topStr, p.bodyTopRadius, p.bodyLength);
         shape.closePath();
         const sg1:ShapeGeometry = new ShapeGeometry(shape, 8);
         //console.log( "SG1 = ", sg1.attributes.position.count);
@@ -84,9 +90,11 @@ export class BirdGeometry
         const breathAmp:number = 1.1;
         const dy:number = p.bodyLength - ( p.bodyTopRadius*breathAmp - p.bodyTopRadius);
         shape2.absarc(0, dy, p.bodyTopRadius * breathAmp, 0, Math.PI, false);
-        shape2.bezierCurveTo(-p.bodyTopRadius * breathAmp, dy -p.bodyLength * .25, -p.bodyBottomRadius, p.bodyLength * .25, -p.bodyBottomRadius, 0);
+        //shape2.bezierCurveTo(-p.bodyTopRadius * breathAmp, dy -p.bodyLength * .25, -p.bodyBottomRadius, p.bodyLength * .25, -p.bodyBottomRadius, 0);
+        shape2.bezierCurveTo(-p.bodyTopRadius * breathAmp, dy -p.bodyTopRadius, -p.bodyBottomRadius, bottomStr, -p.bodyBottomRadius, 0);
         shape2.absarc(0, 0, p.bodyBottomRadius, Math.PI, 0, false);
-        shape2.bezierCurveTo(p.bodyBottomRadius, p.bodyLength * .25, p.bodyTopRadius * breathAmp, p.bodyLength - p.bodyLength * .25, p.bodyTopRadius * breathAmp, dy);
+        //shape2.bezierCurveTo(p.bodyBottomRadius, p.bodyLength * .25, p.bodyTopRadius * breathAmp, p.bodyLength - p.bodyLength * .25, p.bodyTopRadius * breathAmp, dy);
+        shape2.bezierCurveTo(p.bodyBottomRadius, bottomStr, p.bodyTopRadius * breathAmp, p.bodyLength - p.bodyTopRadius * breathAmp, p.bodyTopRadius * breathAmp, dy);
         shape2.closePath();
         const sg2:ShapeGeometry = new ShapeGeometry(shape2, 8);
         //console.log( "SG2 = ", sg1.attributes.position.count);
@@ -212,5 +220,49 @@ export class BirdGeometry
         shape.absarc(p.footLength, 0, p.footRadius, 3*Math.PI / 2, Math.PI / 2, false);
         shape.closePath();
         return new ShapeGeometry(shape, 8);
+    }
+
+    private static createFoot2(params:BirdParams):BufferGeometry
+    {
+        const p:BirdParams = params;
+        
+        const fw:number = .075 ;
+        const off:number = 0.05;
+        const s1:Shape = new Shape();
+        s1.moveTo(-off - fw/2, 0);
+        s1.absarc(-off, 0, fw/2, Math.PI, 0, false);
+        //s1.lineTo(-off + fw/2, 0);
+        s1.lineTo(-off + fw/2, fw/2);
+        s1.absarc(-off, fw/2, fw/2, 0, Math.PI, false);
+        s1.lineTo(-off - fw/2, fw/2);
+        s1.closePath();
+
+        const s2:Shape = new Shape();
+        s2.moveTo(off - fw/2, 0);
+        s2.absarc(off, 0, fw/2, Math.PI, 0, false);
+        //s2.lineTo(off + fw/2, 0);
+        s2.lineTo(off + fw/2, fw/2);
+        s2.absarc(off, fw/2, fw/2, 0, Math.PI, false);
+        s2.lineTo(off - fw/2, fw/2);
+        s2.closePath();
+
+        const sg:BufferGeometry = new ShapeGeometry([s1, s2], 8);
+        sg.translate(0, -p.footRadius , 0);
+        return sg;
+    }
+
+    private static createTail(params:BirdParams):BufferGeometry
+    {
+        const p:BirdParams = params;
+        const s1:Shape = new Shape();
+        const topRad:number = p.bodyBottomRadius * 0.1;
+        const tl:number = p.bodyBottomRadius * 1.5;
+        const tamp:number =p.bodyBottomRadius * 0.5;
+        s1.absarc(0, 0, p.bodyBottomRadius, Math.PI, 0, false);
+        s1.bezierCurveTo(p.bodyBottomRadius, p.bodyBottomRadius, topRad, tl - tamp, topRad, tl );
+        s1.absarc(0, tl, topRad, 0, Math.PI, false);
+        s1.bezierCurveTo(-topRad, tl - tamp, -p.bodyBottomRadius, p.bodyBottomRadius, -p.bodyBottomRadius, 0);
+        s1.closePath();
+        return new ShapeGeometry(s1, 8);
     }
 }

@@ -43,6 +43,10 @@
             return 1 - Math.pow(1 - x, 3);
         }
 
+        static easeOutExpo(x: number): number {
+            return x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
+        }
+
         static easeInSine(x:number):number
         {
             return 1 - Math.cos((x * Math.PI) / 2); 

@@ -1,6 +1,6 @@
 import { MeshBasicMaterial, MeshBasicMaterialParameters, WebGLProgramParametersWithUniforms, WebGLRenderer } from "three";
 
-export class CircleMat extends MeshBasicMaterial
+export class TweetMaterial extends MeshBasicMaterial
 {
     uniforms:any;
     onBeforeCompile:any;
@@ -9,6 +9,7 @@ export class CircleMat extends MeshBasicMaterial
     {
         params.transparent = true;
         params.alphaTest = 0.01;
+        //params.vertexColors = true;
         super(params);
 
         this.uniforms = {
@@ -44,6 +45,14 @@ export class CircleMat extends MeshBasicMaterial
                 {
                     return length(p) - r;
                 }
+
+                float sdRoundedBox( in vec2 p, in vec2 b, in vec4 r )
+                {
+                    r.xy = (p.x>0.0)?r.xy : r.zw;
+                    r.x  = (p.y>0.0)?r.x  : r.y;
+                    vec2 q = abs(p)-b+r.x;
+                    return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - r.x;
+                }
             `);
             
             
@@ -51,10 +60,19 @@ export class CircleMat extends MeshBasicMaterial
                 "#include <color_fragment>",
                 `#include <color_fragment>
 
+                // just a rectangle
                 
-                float circle = sdCircle(vUv - 0.5, 0.5);
-                diffuseColor.a = 1.0 - step(0.0, circle);
+                vec2 boxuv = vUv - 0.5;
+                vec2 boxSize = vec2(0.15, 0.5);
+                vec4 boxRadius = vec4(0.1);
+                float box = sdRoundedBox(boxuv, boxSize, boxRadius);
+                diffuseColor.a = (1.0 - step(0.0, box) )* diffuseColor.r;
+                diffuseColor.rgb = vec3( 0.0 );
+                
+
             `);
+
+            console.log(shader.fragmentShader);
 
         }
     }

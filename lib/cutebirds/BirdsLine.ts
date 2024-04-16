@@ -1,5 +1,5 @@
 import { Box3, BufferGeometry, Camera, Group, Mesh, MeshBasicMaterial, Path, Shape, ShapeGeometry, Vector2, Vector3 } from "three";
-import { Bird } from "./birds/Bird";
+import { Bird, BirdParams } from "./birds/Bird";
 import { Rand } from "../utils/Rand";
 import { CuteBirds } from "./CuteBirds";
 
@@ -11,14 +11,14 @@ export class BirdsLine extends Group
     lineWidth:number = 0.1;
     birds:Bird[] = [];
     //flexDrive:N
-    constructor(start:Vector3, end:Vector3)
+    constructor(start:Vector3, end:Vector3, index:number = 0 )
     {
         super();
 
         this.lineShape = new Shape();
         const ls:Shape = this.lineShape;
         const dx:number = end.x - start.x;
-        const curveFactor:number = Rand.fRange(0.05, 0.15);
+        const curveFactor:number = Rand.fRange(0.1, 0.15); // index * 0.05;
         ls.moveTo(start.x, start.y);
         ls.quadraticCurveTo(start.x + dx * 0.5, start.y - dx * curveFactor, end.x, end.y);
         ls.moveTo(end.x, end.y + this.lineWidth);
@@ -39,6 +39,11 @@ export class BirdsLine extends Group
         {
             if( Rand.bool(.9))
             {
+                /*
+                const bp:BirdParams = new BirdParams();
+                bp.neckLengh = 0.05 + this.birds.length * .05;
+                const bird:Bird = new Bird(bp);
+                */
                 const bird:Bird = new Bird();
                 birdSpan = bird.span;
                 
@@ -55,7 +60,7 @@ export class BirdsLine extends Group
                     0
                 )
                 this.birds.push(bird);
-                px += relSize * .5;
+                px += relSize * .5 + Rand.fRange(.0, .025);
             }
             else 
             {

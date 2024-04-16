@@ -1,10 +1,14 @@
-import { MeshBasicMaterial } from "three";
+import { MeshBasicMaterial, MeshBasicMaterialParameters } from "three";
 
 export class WhiteMaterial extends MeshBasicMaterial
 {
     constructor()
     {
-        super({color: 0xffffff});
-        this.depthWrite = false;
+        const params:MeshBasicMaterialParameters = {
+            transparent: true,
+            depthWrite: false,
+            color: 0xffffff
+        };
+        super(params);
     }
 }

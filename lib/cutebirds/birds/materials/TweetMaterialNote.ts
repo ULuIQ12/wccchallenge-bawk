@@ -1,14 +1,19 @@
 import { MeshBasicMaterial, MeshBasicMaterialParameters, WebGLProgramParametersWithUniforms, WebGLRenderer } from "three";
+import { NotesMap } from "./maps/NotesMap";
 
-export class CircleMat extends MeshBasicMaterial
+export class TweetMaterialNote extends MeshBasicMaterial
 {
     uniforms:any;
     onBeforeCompile:any;
 
-    constructor(params:MeshBasicMaterialParameters)
+    constructor(params:MeshBasicMaterialParameters, renderer:WebGLRenderer)
     {
         params.transparent = true;
         params.alphaTest = 0.01;
+        NotesMap.generateTexture(renderer);
+        params.map = NotesMap.getTexture();
+
+        //params.vertexColors = true;
         super(params);
 
         this.uniforms = {
@@ -44,6 +49,14 @@ export class CircleMat extends MeshBasicMaterial
                 {
                     return length(p) - r;
                 }
+
+                float sdRoundedBox( in vec2 p, in vec2 b, in vec4 r )
+                {
+                    r.xy = (p.x>0.0)?r.xy : r.zw;
+                    r.x  = (p.y>0.0)?r.x  : r.y;
+                    vec2 q = abs(p)-b+r.x;
+                    return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - r.x;
+                }
             `);
             
             
@@ -51,9 +64,9 @@ export class CircleMat extends MeshBasicMaterial
                 "#include <color_fragment>",
                 `#include <color_fragment>
 
-                
-                float circle = sdCircle(vUv - 0.5, 0.5);
-                diffuseColor.a = 1.0 - step(0.0, circle);
+                diffuseColor.a = diffuseColor.r;
+                diffuseColor.rgb = vec3(0.0);
+
             `);
 
         }

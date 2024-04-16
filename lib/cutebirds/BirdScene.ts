@@ -1,9 +1,11 @@
-import { Color, Scene, Vector2, Vector3 } from "three";
+import { Color, Quaternion, Scene, Vector2, Vector3 } from "three";
 import { Rand } from "../utils/Rand";
 import { BeakState, Bird, LegsState, WingsState } from "./birds/Bird";
 import { BirdsLine } from "./BirdsLine";
 import { BirdPalette } from "./BirdPalette";
 import FastSimplexNoise from "@webvoxel/fast-simplex-noise";
+import { BirdSky } from "./BirdSky";
+import { Tweets } from "./birds/Tweets";
 
 
 
@@ -12,6 +14,8 @@ export class BirdScene extends Scene
     palette:BirdPalette = new BirdPalette();
     //birds:Bird[] = [];
     lines:BirdsLine[] = [];
+    sky:BirdSky|undefined;
+    tweets:Tweets|undefined;
 
     flexDrive:FastSimplexNoise = new FastSimplexNoise({
         frequency:0.05,
@@ -22,7 +26,7 @@ export class BirdScene extends Scene
     });
 
     wingsDrive:FastSimplexNoise = new FastSimplexNoise({
-        frequency:0.01,
+        frequency:0.05,
         min:0,
         max:1,
         octaves:1,
@@ -30,7 +34,7 @@ export class BirdScene extends Scene
     });
 
     beakDrive:FastSimplexNoise = new FastSimplexNoise({
-        frequency:0.5,
+        frequency:0.05,
         min:0,
         max:1,
         octaves:1,
@@ -48,13 +52,35 @@ export class BirdScene extends Scene
         const nblines:number = 4 ;
         for (let i = 0; i < nblines; i++)
         {
-            const line:BirdsLine = new BirdsLine(new Vector3(-50, 0), new Vector3(50, 0));
+            const line:BirdsLine = new BirdsLine(new Vector3(-50, 0), new Vector3(50, 0), nblines - i);
             line.position.y = -(nblines * 5 )/2 +  i * 5;
-            line.position.z = i * 2;
+            line.position.z = i * 5;
             this.add(line);
             this.lines.push(line);
         }
 
+        this.lines.forEach(line => {
+            for (let i = 0; i < line.birds.length; i++)
+            {
+                line.birds[i].onTweetCallback = this.onTweet.bind(this);                
+            }
+        });
+
+        const sky:BirdSky = new BirdSky(this.palette);
+        sky.position.set(0,0, -20);
+        this.add(sky);
+
+        const tweets:Tweets = new Tweets();
+        this.add(tweets);
+
+        this.sky = sky;
+        this.tweets = tweets;
+    }
+
+    onTweet( tweet:{position:Vector3, direction:Vector3} )
+    {
+        
+        this.tweets?.tweet(tweet.position, tweet.direction);
     }
 
     tempV30:Vector3 = new Vector3();
@@ -90,5 +116,8 @@ export class BirdScene extends Scene
                 bird.update(dt, elapsed);
             }
         });
+
+        this.sky?.update(dt, elapsed);
+        this.tweets?.update(dt, elapsed);
     }
 }

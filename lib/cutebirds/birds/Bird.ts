@@ -1,4 +1,4 @@
-import { Box2, Box3, BufferGeometry, CircleGeometry, Group, Mesh, Vector2, Vector3 } from "three";
+import { BaseEvent, Box2, Box3, BufferGeometry, CircleGeometry, Group, MathUtils, Mesh, Object3DEventMap, Quaternion, Vector2, Vector3 } from "three";
 import { BlackMaterial } from "./materials/BlackMaterial";
 import { BirdGeometry, BirdGeoms } from "./BirdGeometry";
 import { WhiteMaterial } from "./materials/WhiteMaterial";
@@ -27,7 +27,14 @@ export enum WingsState {
     TRANSITION_TO_DOWN,
 }
 
+export enum HeadOrientation {
+    LEFT, 
+    RIGHT
+}
+
+// render order
 const ElementRO = [
+    "tail",
     "upLeg",
     "lowLeg",
     "foot",
@@ -42,6 +49,9 @@ const ElementRO = [
     "pupil",
 ];
 
+/**
+ * Bird generation parameters
+ */
 export class BirdParams
 {
     seed:number = 0 ;
@@ -57,7 +67,7 @@ export class BirdParams
     bodyLength:number = .5;
     wingBaseRadius:number = .25;
     wingEndRadius:number = .1;
-    wingsOffset:Vector2 = new Vector2(0.1, -0.1);
+    wingsOffset:Vector2 = new Vector2(.1, -.1);
     wingLength:number = .8;
     upLegLength:number = .2;
     upLegRadius:number = .025;
@@ -72,36 +82,40 @@ export class BirdParams
     crouchingAmp:number = Math.PI * .25;
     headBobSpeed:number = 2;
 
-    beakTransitionDuration:number = 0.25;
-    legsTransitionDuration:number = 0.25;
-    wingsTransitionDuration:number = 0.25;
+    beakTransitionDuration:number = .25;
+    legsTransitionDuration:number = .25;
+    wingsTransitionDuration:number = .25;
 
     randomize():BirdParams
     {
         this.seed = Rand.rand();
-        this.headRadius = Rand.fRange(.2, .4);
+        this.headRadius = Rand.fRange(.2, .6);
         this.eyeRadius = Rand.fRange(.08, this.headRadius * .75);
         this.pupilRadius = Rand.fRange(.03, this.eyeRadius * .75);
         this.beakRadius = Rand.fRange(.08, this.headRadius * .5);
         this.beakLength = Rand.fRange(.15, .5);
         this.neckLengh = Rand.fRange(.15, .5);
         
-        this.bodyTopRadius = Rand.fRange(.2, .3);
-        this.bodyBottomRadius = Rand.fRange(.3, .5);
+        this.bodyTopRadius = Rand.fRange(.1, .3);
+        this.bodyBottomRadius = Rand.fRange(.2, .5);
         this.bodyLength = Rand.fRange(.3, .6);
 
         this.wingBaseRadius = Rand.fRange(.2, this.bodyBottomRadius);
-        //this.wingEndRadius = Rand.fRange(.1, .2);
+        this.wingEndRadius = Rand.fRange(.04, .15);
         this.wingLength = Rand.fRange(.6, 1.5);
         this.wingsOffset.set(Rand.fRange(.05, .15), Rand.fRange(0, -.1));
 
-        this.upLegLength = Rand.fRange(.15, .5);
+        this.upLegLength = Rand.fRange(.15, .75);
         //this.upLegRadius = Rand.fRange(.02, .03);
         this.lowLegLength = Rand.fRange(this.upLegLength * .75, this.upLegLength * 1.5);
         //this.lowLegRadius = Rand.fRange(.02, .03);
         this.footLength = Rand.fRange(.1, .2);
+
+        const angVal:number = Rand.fRange(.05, .3) * Math.PI;
+        this.leftlegAngle = Math.PI * 1.5 - angVal;
+        this.rightlegAngle = Math.PI * 1.5 + angVal;
         //this.footRadius = Rand.fRange(.02, .03);
-        //this.kneeRadius = Rand.fRange(.03, .04);
+        this.kneeRadius = Rand.fRange(.035, .06);
         //this.leftlegAngle = Math.PI * 1.5 - Rand.fRange(.05, .15);
         this.legInset = this.bodyBottomRadius - this.bodyBottomRadius * .15;
 
@@ -109,7 +123,7 @@ export class BirdParams
         this.headBobSpeed = Rand.fRange(1, 10);
         this.beakTransitionDuration = Rand.fRange(.15, .75);
         this.legsTransitionDuration = Rand.fRange(.15, .75);
-        this.wingsTransitionDuration = Rand.fRange(.15, .75);
+        this.wingsTransitionDuration = Rand.fRange(.15, .75);        
         return this;
     }
 }
@@ -124,15 +138,18 @@ export class Bird extends Group
     pupil:Mesh;
     beakTop:Mesh;
     beakBottom:Mesh;
+    beakContainer:Group;
     body:Mesh;
     leftWing:Mesh;
     rightWing:Mesh;
+    legContainer:Group;
     leftUpLeg:Mesh;
     rightUpLeg:Mesh;
     leftLowLeg:Mesh;
     rightLowLeg:Mesh;
     leftFoot:Mesh;
     rightFoot:Mesh;
+    tail:Mesh;
 
     beakState:BeakState = BeakState.CLOSED;
     beakTransition:number = 0;
@@ -149,13 +166,16 @@ export class Bird extends Group
     wingsTransitionDuration:number = 0.25;
     wingsTransitionStart:number = 0;
 
-    constructor()
+    headOrientation:HeadOrientation = HeadOrientation.RIGHT;
+
+    
+    constructor(params?:BirdParams)
     {
         super();
 
         const blackMat:BlackMaterial = new BlackMaterial();
         const whiteMat:WhiteMaterial = new WhiteMaterial();
-        const p:BirdParams =new BirdParams().randomize();
+        const p:BirdParams = (params)?params:new BirdParams().randomize();
         this.params = p;
         const geoms:BirdGeoms = BirdGeometry.getGeometry(p);
 
@@ -194,24 +214,26 @@ export class Bird extends Group
         head.add(eye);
 
         const pupil:Mesh = new Mesh(geoms.pupil, blackMat);
-        pupil.position.set(0, 0, 0);
+        //pupil.position.set( (p.eyeRadius - p.pupilRadius) * .9, 0, 0);
         pupil.renderOrder = ElementRO.indexOf("pupil");
         head.add(pupil);
 
+        const beakContainer:Group = new Group();
+        head.add(beakContainer);
         const beakTop:Mesh = new Mesh(geoms.beakTop, blackMat);
-        //beakTop.rotation.z = Math.PI * .15;
         beakTop.position.set(p.headRadius - p.beakRadius, 0, 0);
         beakTop.renderOrder = ElementRO.indexOf("beakTop");
-        head.add(beakTop);
+        beakContainer.add(beakTop);
 
         const beakBottom:Mesh = new Mesh(geoms.beakBottom, blackMat);
-        //beakBottom.rotation.z = -Math.PI * .25;
         beakBottom.position.set(p.headRadius - p.beakRadius, 0, 0);
         beakBottom.renderOrder = ElementRO.indexOf("beakBottom");
-        head.add(beakBottom);
+        beakContainer.add(beakBottom);
 
-
-        
+        //beakContainer.rotation.z = Math.PI * .9;
+        const legContainer:Group = new Group();
+        legContainer.position.y = p.upLegLength + p.lowLegLength + p.bodyBottomRadius;
+        this.add(legContainer);
         const leftUpLeg:Mesh = new Mesh(geoms.upLeg, blackMat);
         leftUpLeg.renderOrder = ElementRO.indexOf("upLeg");
         leftUpLeg.position.set(
@@ -219,7 +241,7 @@ export class Bird extends Group
             Math.sin(p.leftlegAngle) * p.legInset,
             0
         )
-        body.add(leftUpLeg);
+        legContainer.add(leftUpLeg);
 
         const rightUpLeg:Mesh = new Mesh(geoms.upLeg, blackMat);
         rightUpLeg.renderOrder = ElementRO.indexOf("upLeg");
@@ -228,7 +250,7 @@ export class Bird extends Group
             Math.sin(p.rightlegAngle) * p.legInset,
             0
         )
-        body.add(rightUpLeg);
+        legContainer.add(rightUpLeg);
 
         const leftLowLeg:Mesh = new Mesh(geoms.lowLeg, blackMat);
         leftLowLeg.renderOrder = ElementRO.indexOf("lowLeg");
@@ -242,16 +264,21 @@ export class Bird extends Group
 
         const footGeom:BufferGeometry = geoms.foot as BufferGeometry;
         const leftFoot:Mesh = new Mesh(footGeom.clone(), blackMat);
-        leftFoot.geometry.translate(-p.footLength + p.footLength*.25,0,0);
+        //leftFoot.geometry.translate(-p.footLength + p.footLength*.25,0,0); // for foot v1
         leftFoot.renderOrder = ElementRO.indexOf("foot");
         leftFoot.position.set(0, -p.lowLegLength, 0);
         leftLowLeg.add(leftFoot);
 
         const rightFoot:Mesh = new Mesh(footGeom.clone(), blackMat);
-        rightFoot.geometry.translate(-p.footLength * 0.25 ,0,0);
+        //rightFoot.geometry.translate(-p.footLength * 0.25 ,0,0); // for foot v1
         rightFoot.renderOrder = ElementRO.indexOf("foot");
         rightFoot.position.set(0, -p.lowLegLength, 0);
         rightLowLeg.add(rightFoot);
+
+        const tail:Mesh = new Mesh(geoms.tail, blackMat);
+        tail.renderOrder = ElementRO.indexOf("tail");
+        tail.rotation.z = Math.PI * .4;
+        body.add(tail);
         
         this.head = head;
         this.neck = neck;
@@ -259,16 +286,19 @@ export class Bird extends Group
         this.pupil = pupil;
         this.beakTop = beakTop;
         this.beakBottom = beakBottom;
+        this.beakContainer = beakContainer;
         this.body = body;
         this.leftWing = leftWing;
         this.rightWing = rightWing;
 
+        this.legContainer = legContainer;
         this.leftUpLeg = leftUpLeg;
         this.rightUpLeg = rightUpLeg;
         this.leftLowLeg = leftLowLeg;
         this.rightLowLeg = rightLowLeg;
         this.leftFoot = leftFoot;
         this.rightFoot = rightFoot;
+        this.tail = tail;
 
         /**debug */
         /*
@@ -304,12 +334,14 @@ export class Bird extends Group
         this.testLegs();
         this.testWings();
         */
+        this.testHeadOrientation()
         
         this.handleLegsState(dt, elapsed);
         this.handleBeakState(dt, elapsed);
         this.handleWingsState(dt, elapsed);
         this.handleBreathing(dt, elapsed);
         this.handleHeadBob(dt, elapsed);
+        this.HandleHeadOrientation(dt, elapsed);
         this.handleBodyHeight();
         this.lastUpdate = elapsed;
     }
@@ -342,6 +374,8 @@ export class Bird extends Group
     * Handle the body height based on the legs position
     */
     bodyOffset:number = 0;
+    targetBodyRotation:number = 0 ;
+    targetTailRotation:number = Math.PI * .4;
     handleBodyHeight()
     {
         if( this.bodyOffset == 0)
@@ -353,26 +387,65 @@ export class Bird extends Group
         bbleft.getSize(this.tempV30);
         const bbright:Box3 = new Box3().setFromObject(this.rightUpLeg, true);
         bbright.getSize(this.tempV31);
-        this.body.position.y = Math.max(this.tempV30.y, this.tempV31.y) + this.bodyOffset;
+        this.body.position.y = Math.max(this.tempV30.y, this.tempV31.y) + this.bodyOffset + this.params.footRadius;
+        this.legContainer.position.y = this.body.position.y ;
+        /** quick adds */
+        if( Rand.bool(0.01))
+        {
+            this.targetBodyRotation = Rand.fRange(-Math.PI * .1, Math.PI * .1);   
+        }
+        this.body.rotation.z = MathUtils.lerp(this.body.rotation.z, this.targetBodyRotation, 0.05);
+        if( Rand.bool(0.01))
+        {
+            this.targetTailRotation = Rand.bool(.5)?Math.PI * .4: -Math.PI * .4;   
+        }
+        this.tail.rotation.z = MathUtils.lerp(this.tail.rotation.z, this.targetTailRotation, 0.05);
     }
 
     /**
      * Beak
      */
+    
     OpenBeak()
     {
         this.beakState = BeakState.TRANSITION_TO_OPEN;
         this.beakTransitionStart = this.lastUpdate;
+        this.tweetDone = false;
+    }
+
+    onTweetCallback:Function = (tweet:{position:Vector3, direction:Vector3}) => {};
+    tweetDone:boolean = false;
+    beakTweet()
+    {
+        
+        const beakPos:Vector3 = new Vector3();
+        this.beakTop.getWorldPosition(beakPos);
+        const Q:Quaternion = new Quaternion();
+        //const randDir:Quaternion = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Rand.fRange(-Math.PI * .15, Math.PI * .15));
+        
+        this.head.getWorldQuaternion(Q);
+        const v3:Vector3 = new Vector3(1, 0, 0).applyQuaternion(Q);
+        if( this.headOrientation == HeadOrientation.LEFT)
+        {
+            v3.x = -v3.x;
+        }
+        beakPos.addScaledVector(v3, this.params.beakLength * .5);
+        
+        this.onTweetCallback({position:beakPos, direction:v3});
+        this.tweetDone = true;
     }
 
     CloseBeak()
     {
+        
         this.beakState = BeakState.TRANSITION_TO_CLOSED;
         this.beakTransitionStart = this.lastUpdate;
+        
     }
 
     handleBeakState(dt:number, elapsed:number)
     {
+        
         if(this.beakState == BeakState.TRANSITION_TO_OPEN)
         {
             this.beakTransition = Math.min(1, (elapsed - this.beakTransitionStart) / this.beakTransitionDuration);
@@ -380,6 +453,10 @@ export class Bird extends Group
             this.beakTop.rotation.z = Math.PI * .15 * t;
             this.beakBottom.rotation.z = -Math.PI * .25 * t;
             
+            if( this.beakTransition > 0.75 && this.beakTransition < .8 && !this.tweetDone)
+            {
+                this.beakTweet();
+            }
             if(this.beakTransition == 1)
             {
                 this.beakState = BeakState.OPEN;
@@ -394,6 +471,7 @@ export class Bird extends Group
             
             if(this.beakTransition == 1)
             {
+                
                 this.beakState = BeakState.CLOSED;
             }
         }
@@ -532,6 +610,45 @@ export class Bird extends Group
         else if(this.wingsState == WingsState.UP && Rand.bool(0.2))
         {
             this.CloseWings();
+        }
+    }
+
+    /**
+     * Head orientation
+     */
+
+    LookLeft()
+    {
+        this.headOrientation = HeadOrientation.LEFT;
+        
+    }
+
+    LookRight()
+    {
+        this.headOrientation = HeadOrientation.RIGHT;
+    }
+
+    HandleHeadOrientation(dt:number, elapsed:number)
+    {
+        if( this.headOrientation == HeadOrientation.LEFT)
+        {
+            this.beakContainer.rotation.z = MathUtils.lerp(this.beakContainer.rotation.z, Math.PI * .9, 0.1);
+        }
+        else if( this.headOrientation == HeadOrientation.RIGHT)
+        {
+            this.beakContainer.rotation.z = MathUtils.lerp(this.beakContainer.rotation.z, 0, 0.1);
+        }
+    }
+
+    testHeadOrientation()
+    {
+        if(this.headOrientation == HeadOrientation.RIGHT && Rand.bool(0.01))
+        {
+            this.LookLeft();
+        }
+        else if(this.headOrientation == HeadOrientation.LEFT && Rand.bool(0.01))
+        {
+            this.LookRight();
         }
     }
 }
